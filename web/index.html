@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base href="/">
+
+  <script>
+    // Redireciona 127.0.0.1 para localhost para autorização nativa do Firebase Auth (Google Sign-In)
+    if (window.location && window.location.hostname === "127.0.0.1") {
+      window.location.replace(window.location.href.replace("//127.0.0.1", "//localhost"));
+    }
+  </script>
+
+  <script>
+    // IDENTIDADE DO DISPOSITIVO (cid): cada navegador/celular recebe um ID único e persistente.
+    // Ele é anexado à URL (?cid=...) para o Python isolar a sessão deste aparelho, e a todas as
+    // chamadas ao servidor auxiliar (GPS, câmera, login Google, seleção de missão).
+    (function () {
+      try {
+        var cid = localStorage.getItem("ecobounty_cid");
+        if (!cid) {
+          var rnd = (window.crypto && crypto.getRandomValues)
+            ? Array.from(crypto.getRandomValues(new Uint8Array(12))).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("")
+            : String(Math.random()).slice(2) + String(Date.now());
+          cid = "c" + rnd;
+          localStorage.setItem("ecobounty_cid", cid);
+        }
+        window.ECOBOUNTY_CID = cid;
+        // Persiste também no formato SharedPreferences do Flutter Web (page.client_storage)
+        localStorage.setItem("flutter.ecobounty_cid", JSON.stringify(JSON.stringify(cid)));
+        var u = new URL(window.location.href);
+        if (u.searchParams.get("cid") !== cid) {
+          u.searchParams.set("cid", cid);
+          window.history.replaceState(null, "", u.pathname + u.search + u.hash);
+        }
+      } catch (e) { window.ECOBOUNTY_CID = ""; }
+    })();
+  </script>
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="EcoBounty - Economia Circular Gamificada">
+
+  <!-- iOS & Android PWA meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EcoBounty">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png" />
+
+  <!-- Flet specific -->
+  <meta name="flet-route-url-strategy" content="path">
+  <meta name="flet-web-pyodide" content="false">
+  <meta name="flet-websocket-endpoint-path" content="/ws">
+
+  <title>EcoBounty - Economia Circular Gamificada</title>
+  <link rel="manifest" href="manifest.json">
+
+  <script>
+    var webRenderer = "auto";
+    var useColorEmoji = false;
+  </script>
+
+  <!-- webRenderer -->
+  <!-- useColorEmoji -->
+
+  <!-- pyodideCode -->
+
+  <script>
+    // The value below is injected by flutter build, do not touch.
+    const serviceWorkerVersion = "2967422554";
+  </script>
+  <!-- This script adds the flutter initialization JS code -->
+  <script src="flutter.js" defer></script>
+</head>
+
+<body>
+  <div id="loading">
+    <style>
+      body {
+        inset: 0;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+        position: fixed;
+        background-color: #059669;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      #loading {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        justify-content: center;
+        width: 100%;
+        background-color: #059669;
+        color: white;
+        transition: opacity 0.25s ease-out;
+      }
+
+      .ecobounty-logo-wrap {
+        width: 88px;
+        height: 88px;
+        border-radius: 44px;
+        background: rgba(255, 255, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 18px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        animation: pulse 1.6s ease-in-out infinite alternate;
+      }
+
+      .ecobounty-svg {
+        width: 52px;
+        height: 52px;
+        fill: white;
+      }
+
+      .ecobounty-title {
+        font-size: 38px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        margin: 0;
+        color: #ffffff;
+      }
+
+      .ecobounty-sub {
+        font-size: 15px;
+        font-weight: 500;
+        margin: 8px 0 0 0;
+        color: #d1fae5;
+      }
+
+      .ecobounty-spinner {
+        margin-top: 32px;
+        width: 26px;
+        height: 26px;
+        border: 3px solid rgba(255, 255, 255, 0.25);
+        border-radius: 50%;
+        border-top-color: #ffffff;
+        animation: spin 0.75s linear infinite;
+      }
+
+      @keyframes pulse {
+        from {
+          transform: scale(0.96);
+          opacity: 0.9;
+        }
+        to {
+          transform: scale(1.04);
+          opacity: 1;
+        }
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #loading.init_done {
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+
+    <div class="ecobounty-logo-wrap">
+      <!-- Eco Leaf SVG Icon -->
+      <svg class="ecobounty-svg" viewBox="0 0 24 24">
+        <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 0 0 8 20C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z"/>
+      </svg>
+    </div>
+    <h1 class="ecobounty-title">EcoBounty</h1>
+    <p class="ecobounty-sub">Economia Circular Gamificada</p>
+    <div class="ecobounty-spinner"></div>
+  </div>
+
+  <script>
+    window.addEventListener('load', function () {
+      var loading = document.querySelector('#loading');
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        }
+      }).then(function (engineInitializer) {
+        if (loading) loading.classList.add('main_done');
+        return engineInitializer.initializeEngine({
+          renderer: webRenderer,
+          useColorEmoji: useColorEmoji,
+        });
+      }).then(function (appRunner) {
+        if (loading) loading.classList.add('init_done');
+        return appRunner.runApp();
+      }).then(function (app) {
+        window.setTimeout(function () {
+          if (loading && loading.parentNode) {
+            loading.remove();
+          }
+        }, 150);
+      });
+    });
+  </script>
+
+  <!-- Estilos e Estrutura da Câmera In-Page e Avisos de Permissão Sob Demanda -->
+  <style>
+    /* Modal de Câmera na Mesma Página (In-Page Overlay) */
+    #ecobounty-cam-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 999999;
+      background: rgba(2, 6, 23, 0.95);
+      backdrop-filter: blur(8px);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #ecobounty-cam-modal.active {
+      display: flex;
+    }
+    .eco-cam-viewport-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+      height: 72vh;
+      max-height: 640px;
+      background: #000;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #ecoLiveVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .eco-cam-grid {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border: 2px dashed rgba(255, 255, 255, 0.25);
+      border-radius: 20px;
+      margin: 16px;
+    }
+    .eco-cam-header {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+    .eco-cam-badge {
+      background: rgba(15, 23, 42, 0.75);
+      color: #38bdf8;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 20px;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .eco-cam-btn-close {
+      background: rgba(15, 23, 42, 0.75);
+      color: #ffffff;
+      border: none;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .eco-cam-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      width: 100%;
+      max-width: 440px;
+      padding: 24px 16px;
+    }
+    .eco-cam-btn-shutter {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 5px solid #10b981;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+      transition: transform 0.1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .eco-cam-btn-shutter:active {
+      transform: scale(0.92);
+      background: #10b981;
+    }
+    .eco-cam-btn-flip {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
+      color: white;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .eco-cam-status-msg {
+      color: #cbd5e1;
+      font-size: 13px;
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* Banner Flutuante de Permissões Recusadas com Botão de Ativação */
+    #ecobounty-perm-banner {
+      display: none;
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 420px;
+      background: #0f172a;
+      border: 1px solid #ef4444;
+      border-radius: 16px;
+      padding: 14px 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      z-index: 999998;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      animation: slideDown 0.3s ease;
+    }
+    #ecobounty-perm-banner.active {
+      display: block;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translate(-50%, -20px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+    .eco-perm-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f87171;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .eco-perm-desc {
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .eco-perm-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .eco-perm-btn-activate {
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .eco-perm-btn-dismiss {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+  </style>
+
+  <!-- Modal de Mapa Interativo In-Page (Leaflet + OpenStreetMap) -->
+  <style>
+    #ecobounty-leaflet-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 999995;
+      background: rgba(2, 6, 23, 0.88);
+      backdrop-filter: blur(8px);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #ecobounty-leaflet-modal.active {
+      display: flex;
+    }
+    .eco-map-viewport-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+      height: 86vh;
+      max-height: 800px;
+      background: #0f172a;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      transition: all 0.25s ease;
+    }
+    .eco-map-viewport-wrap.fullscreen {
+      max-width: 100vw;
+      max-height: 100vh;
+      height: 100vh;
+      border-radius: 0;
+    }
+    .eco-map-header {
+      background: #0f172a;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+      border-bottom: 1px solid #1e293b;
+    }
+    .eco-map-badge {
+      color: #10b981;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .eco-map-btn-action {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 5px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+    .eco-map-btn-action:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .eco-map-btn-close {
+      background: #ef4444;
+      color: #ffffff;
+      border: none;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s;
+    }
+    .eco-map-btn-close:active {
+      transform: scale(0.92);
+    }
+    #ecoLeafletIframe {
+      width: 100%;
+      flex: 1;
+      border: none;
+      background: #e2e8f0;
+    }
+  </style>
+
+  <!-- Elemento Visual: Mapa Interativo Leaflet In-Page -->
+  <div id="ecobounty-leaflet-modal">
+    <div class="eco-map-viewport-wrap" id="ecoMapWrap">
+      <div class="eco-map-header">
+        <div class="eco-map-badge">🌍 OpenStreetMap Interativo HD</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="eco-map-btn-action" onclick="alternarLeafletFullscreen()" id="ecoMapExpandBtn" title="Alternar Tela Cheia">⛶ Tela Cheia</button>
+          <button class="eco-map-btn-close" onclick="fecharMapaInPage()" title="Voltar ao EcoBounty">✕</button>
+        </div>
+      </div>
+      <iframe id="ecoLeafletIframe" src="about:blank" allow="geolocation"></iframe>
+    </div>
+  </div>
+
+  <!-- Elemento Visual: Câmera In-Page -->
+  <div id="ecobounty-cam-modal">
+    <div class="eco-cam-viewport-wrap">
+      <div class="eco-cam-header">
+        <div class="eco-cam-badge">📷 Câmera ao Vivo</div>
+        <button class="eco-cam-btn-close" onclick="fecharCameraInPage()">✕</button>
+      </div>
+      <video id="ecoLiveVideo" autoplay playsinline muted></video>
+      <div class="eco-cam-grid"></div>
+    </div>
+    <div class="eco-cam-status-msg" id="ecoCamStatus">Aponte para o resíduo e clique no botão verde para fotografar</div>
+    <div class="eco-cam-controls">
+      <button class="eco-cam-btn-flip" onclick="alternarCameraInPage()" title="Alternar Câmera">🔄</button>
+      <button class="eco-cam-btn-shutter" onclick="capturarFotoInPage()" title="Tirar Foto"></button>
+      <button class="eco-cam-btn-flip" onclick="fecharCameraInPage()" title="Cancelar">✕</button>
+    </div>
+  </div>
+
+  <!-- Banner de Permissões Recusadas -->
+  <div id="ecobounty-perm-banner">
+    <div class="eco-perm-title" id="ecoPermTitle">⚠️ Permissão Necessária</div>
+    <div class="eco-perm-desc" id="ecoPermDesc">O recurso não pôde ser ativado devido à recusa da permissão no navegador.</div>
+    <div class="eco-perm-actions">
+      <button class="eco-perm-btn-dismiss" onclick="fecharBannerPermissao()">Dispensar</button>
+      <button class="eco-perm-btn-activate" id="ecoPermBtnAction" onclick="reativarPermissaoPendente()">Ativar Recurso</button>
+    </div>
+  </div>
+
+  <canvas id="ecoCamCanvas" style="display: none;"></canvas>
+
+  <script>
+    var currentMediaStream = null;
+    var currentFacingMode = "environment";
+    var currentCameraMode = "denuncia";
+    var pendingPermissionType = null; // "gps" ou "camera"
+    var currentUserLat = null;
+    var currentUserLng = null;
+
+    // Mostra aviso de permissão recusada com botão de reativação
+    function exibirBannerPermissao(tipo, titulo, mensagem) {
+      pendingPermissionType = tipo;
+      var banner = document.getElementById("ecobounty-perm-banner");
+      var titleEl = document.getElementById("ecoPermTitle");
+      var descEl = document.getElementById("ecoPermDesc");
+      var btnAction = document.getElementById("ecoPermBtnAction");
+      if (titleEl) titleEl.innerText = titulo;
+      if (descEl) descEl.innerText = mensagem;
+      if (btnAction) btnAction.innerText = tipo === "gps" ? "Ativar Localização (GPS)" : "Ativar Câmera";
+      if (banner) banner.classList.add("active");
+    }
+
+    function fecharBannerPermissao() {
+      var banner = document.getElementById("ecobounty-perm-banner");
+      if (banner) banner.classList.remove("active");
+    }
+
+    function reativarPermissaoPendente() {
+      fecharBannerPermissao();
+      if (pendingPermissionType === "gps") {
+        solicitarGPS();
+      } else if (pendingPermissionType === "camera") {
+        abrirCameraInPage(currentCameraMode);
+      }
+    }
+
+    function getEcoBountyApiBase() {
+      var loc = window.location || {};
+      var port = loc.port || "";
+      // Execução local (porta do Flet 8550): servidor auxiliar separado na porta 8552.
+      // Nuvem (Render etc.): mesma origem HTTPS, roteada pelo proxy em /ecoapi.
+      if (port === "8550" || port === "8551") {
+        var host = loc.hostname || "localhost";
+        var proto = (loc.protocol === "https:") ? "https:" : "http:";
+        return proto + "//" + host + ":8552";
+      }
+      return (loc.origin || "") + "/ecoapi";
+    }
+
+    // Anexa automaticamente o cid do dispositivo a toda chamada ao servidor auxiliar
+    (function () {
+      var origFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        try {
+          var url = (typeof input === "string") ? input : (input && input.url);
+          var base = getEcoBountyApiBase();
+          if (url && url.indexOf(base) === 0 && window.ECOBOUNTY_CID && url.indexOf("cid=") === -1) {
+            url += (url.indexOf("?") === -1 ? "?" : "&") + "cid=" + encodeURIComponent(window.ECOBOUNTY_CID);
+            input = (typeof input === "string") ? url : new Request(url, input);
+          }
+        } catch (e) {}
+        return origFetch(input, init);
+      };
+    })();
+
+    // 1. GPS Sob Demanda (Acionado ao abrir o mapa ou telas de rota)
+    function solicitarGPS() {
+      if (!("geolocation" in navigator)) {
+        exibirBannerPermissao("gps", "📍 GPS Indisponível", "Seu navegador não oferece suporte à geolocalização.");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          currentUserLat = lat;
+          currentUserLng = lng;
+          console.log("📍 [EcoBounty GPS Real]:", lat, lng, "Precisão:", pos.coords.accuracy, "m");
+          fecharBannerPermissao();
+          try {
+            localStorage.setItem("ecobounty_real_lat", lat);
+            localStorage.setItem("ecobounty_real_lng", lng);
+          } catch(e) {}
+          // Sincroniza via fetch diretamente com o servidor local sem recarregar a tela
+          fetch(getEcoBountyApiBase() + "/location?lat=" + lat.toFixed(6) + "&lng=" + lng.toFixed(6), { mode: "cors" })
+            .catch(function(err) { /* sync gps offline silencioso */ });
+        },
+        function(err) {
+          console.warn("📍 [EcoBounty GPS Negado]:", err.message);
+          exibirBannerPermissao(
+            "gps",
+            "📍 Localização Negada",
+            "O recurso de mapa não pôde exibir sua posição exata devido à recusa de permissão de GPS. Clique abaixo para ativar."
+          );
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      );
+    }
+
+    // 2. Câmera In-Page Sob Demanda (Acionada ao clicar para tirar foto na mesma página)
+    function abrirCameraInPage(mode) {
+      currentCameraMode = mode || "denuncia";
+      var statusEl = document.getElementById("ecoCamStatus");
+      if (statusEl) statusEl.innerText = "Aponte para o resíduo e clique no botão verde para fotografar";
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        exibirBannerPermissao("camera", "📷 Câmera Indisponível", "Seu dispositivo ou navegador não suporta captura direta de câmera.");
+        return;
+      }
+
+      // Solicita permissão e abre a câmera no modal in-page na mesma tela
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: currentFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      }).then(function(stream) {
+        fecharBannerPermissao();
+        currentMediaStream = stream;
+        var videoEl = document.getElementById("ecoLiveVideo");
+        if (videoEl) {
+          videoEl.srcObject = stream;
+          videoEl.play();
+        }
+        var modal = document.getElementById("ecobounty-cam-modal");
+        if (modal) modal.classList.add("active");
+      }).catch(function(err) {
+        console.warn("📷 [EcoBounty Câmera Negada]:", err);
+        exibirBannerPermissao(
+          "camera",
+          "📷 Câmera Negada",
+          "O recurso de câmera não pode ser utilizado devido à recusa de permissão. Clique para ativar ou use o botão de arquivo/galeria."
+        );
+      });
+    }
+
+    function fecharCameraInPage() {
+      if (currentMediaStream) {
+        currentMediaStream.getTracks().forEach(function(track) { track.stop(); });
+        currentMediaStream = null;
+      }
+      var videoEl = document.getElementById("ecoLiveVideo");
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.srcObject = null;
+      }
+      var modal = document.getElementById("ecobounty-cam-modal");
+      if (modal) modal.classList.remove("active");
+    }
+
+    function alternarCameraInPage() {
+      currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+      fecharCameraInPage();
+      abrirCameraInPage(currentCameraMode);
+    }
+
+    function capturarFotoInPage() {
+      var videoEl = document.getElementById("ecoLiveVideo");
+      var canvasEl = document.getElementById("ecoCamCanvas");
+      var statusEl = document.getElementById("ecoCamStatus");
+      if (!videoEl || !canvasEl) return;
+
+      var w = videoEl.videoWidth || 640;
+      var h = videoEl.videoHeight || 480;
+      canvasEl.width = w;
+      canvasEl.height = h;
+      var ctx = canvasEl.getContext("2d");
+      ctx.drawImage(videoEl, 0, 0, w, h);
+
+      if (statusEl) statusEl.innerText = "⏳ Enviando foto com sucesso...";
+
+      canvasEl.toBlob(function(blob) {
+        if (!blob) {
+          fecharCameraInPage();
+          return;
+        }
+        var uploadLat = currentUserLat;
+        var uploadLng = currentUserLng;
+        if (!uploadLat) {
+          try {
+            uploadLat = parseFloat(localStorage.getItem("ecobounty_real_lat"));
+            uploadLng = parseFloat(localStorage.getItem("ecobounty_real_lng"));
+          } catch(e) {}
+        }
+        var uploadUrl = getEcoBountyApiBase() + "/upload?mode=" + encodeURIComponent(currentCameraMode);
+        if (uploadLat && uploadLng && !isNaN(uploadLat) && !isNaN(uploadLng)) {
+          uploadUrl += "&lat=" + encodeURIComponent(uploadLat) + "&lng=" + encodeURIComponent(uploadLng);
+        }
+        fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": "image/jpeg" },
+          mode: "cors",
+          body: blob
+        }).then(function(res) { return res.json(); })
+          .then(function(data) {
+            console.log("📸 [Foto Enviada via In-Page Cam]:", data);
+            fecharCameraInPage();
+          })
+          .catch(function(err) {
+            console.error("Erro upload:", err);
+            fecharCameraInPage();
+          });
+      }, "image/jpeg", 0.88);
+    }
+
+    // Funções do Modal de Mapa Leaflet In-Page
+    function abrirMapaInPage(urlParams) {
+      var modal = document.getElementById("ecobounty-leaflet-modal");
+      var iframe = document.getElementById("ecoLeafletIframe");
+      if (!modal || !iframe) return;
+      var src = "/interactive_map.html";
+      if (urlParams) {
+        src += (urlParams.startsWith("?") ? urlParams : "?" + urlParams);
+      } else {
+        var lat = currentUserLat || -9.6058;
+        var lng = currentUserLng || -35.7518;
+        src += "?lat=" + lat + "&lng=" + lng + "&zoom=15";
+      }
+      iframe.src = src;
+      modal.classList.add("active");
+    }
+
+    function fecharMapaInPage() {
+      var modal = document.getElementById("ecobounty-leaflet-modal");
+      var iframe = document.getElementById("ecoLeafletIframe");
+      if (modal) modal.classList.remove("active");
+      if (iframe) iframe.src = "about:blank";
+    }
+
+    function alternarLeafletFullscreen() {
+      var wrap = document.getElementById("ecoMapWrap");
+      var btn = document.getElementById("ecoMapExpandBtn");
+      if (!wrap) return;
+      wrap.classList.toggle("fullscreen");
+      if (btn) {
+        btn.innerText = wrap.classList.contains("fullscreen") ? "🗗 Reduzir" : "⛶ Tela Cheia";
+      }
+    }
+
+    // Escuta mensagens disparadas de dentro do iframe do Leaflet
+    window.addEventListener("message", function(e) {
+      if (!e.data) return;
+      if (e.data.type === "CLOSE_MAP") {
+        fecharMapaInPage();
+      } else if (e.data.type === "SELECT_BOUNTY") {
+        var id = e.data.id;
+        fecharMapaInPage();
+        fetch(getEcoBountyApiBase() + "/select_bounty?id=" + encodeURIComponent(id), { mode: "cors" })
+          .catch(function() {});
+        try {
+          localStorage.setItem("ecobounty_selected_bounty_id", id);
+        } catch(err) {}
+        if (window.location.search.indexOf("bounty_id=") === -1) {
+          window.location.href = "/?bounty_id=" + id + "&tab=list";
+        }
+      }
+    });
+
+    // Exporta para o escopo global (window)
+    window.solicitarGPS = solicitarGPS;
+    window.abrirCameraInPage = abrirCameraInPage;
+    window.fecharCameraInPage = fecharCameraInPage;
+    window.alternarCameraInPage = alternarCameraInPage;
+    window.capturarFotoInPage = capturarFotoInPage;
+    window.abrirMapaInPage = abrirMapaInPage;
+    window.fecharMapaInPage = fecharMapaInPage;
+    window.alternarLeafletFullscreen = alternarLeafletFullscreen;
+
+    // Loop resiliente de escuta de comandos sob demanda (com backoff e captura segura de erros)
+    async function escutarComandosEcoBounty() {
+      var nextDelay = 2000;
+      try {
+        var url = getEcoBountyApiBase() + "/action";
+        var res = await window.fetch(url, {
+          method: "GET",
+          headers: { "Accept": "application/json" },
+          cache: "no-store",
+          mode: "cors"
+        });
+        if (res && res.ok) {
+          var data = await res.json();
+          if (data && data.action) {
+            console.log("⚡ [Comando EcoBounty recebido]:", data.action, data.data);
+            if (data.action === "request_gps") {
+              solicitarGPS();
+            } else if (data.action === "open_camera") {
+              abrirCameraInPage(data.data ? data.data.mode : "denuncia");
+            } else if (data.action === "open_leaflet_map") {
+              var q = "";
+              if (data.data) {
+                var d = data.data;
+                var p = [];
+                if (d.lat) p.push("lat=" + d.lat);
+                if (d.lng) p.push("lng=" + d.lng);
+                if (d.zoom) p.push("zoom=" + d.zoom);
+                if (d.route_mode) p.push("route_mode=" + d.route_mode);
+                if (d.dest_lat) p.push("dest_lat=" + d.dest_lat);
+                if (d.dest_lng) p.push("dest_lng=" + d.dest_lng);
+                if (d.bounties) p.push("bounties=" + encodeURIComponent(JSON.stringify(d.bounties)));
+                q = p.join("&");
+              }
+              abrirMapaInPage(q);
+            } else if (data.action === "trigger_google_auth") {
+              if (typeof window.iniciarLoginGoogle === "function") {
+                window.iniciarLoginGoogle();
+              }
+            }
+            nextDelay = 600;
+          } else {
+            nextDelay = 2000;
+          }
+        } else {
+          nextDelay = 3000;
+        }
+      } catch (err) {
+        // Servidor local de ação ainda não iniciado ou indisponível: recua silenciosamente com backoff
+        nextDelay = 4000;
+      } finally {
+        setTimeout(escutarComandosEcoBounty, nextDelay);
+      }
+    }
+
+    window.addEventListener('load', function() {
+      setTimeout(escutarComandosEcoBounty, 1000);
+    });
+  </script>
+
+  <!-- Firebase App & Firebase Auth para Login Real com Google -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "YOUR_GOOGLE_CLOUD_OR_FIREBASE_API_KEY",
+      authDomain: "ecobounty-9d250.firebaseapp.com",
+      projectId: "ecobounty-9d250",
+      storageBucket: "ecobounty-9d250.firebasestorage.app",
+      messagingSenderId: "497537080035",
+      appId: "1:497537080035:web:a403e448d9093feb1203d6",
+      measurementId: "G-KXRY4KB64S"
+    };
+
+    let fbAuth = null;
+    let fbGoogleProvider = null;
+    try {
+      const app = initializeApp(firebaseConfig);
+      fbAuth = getAuth(app);
+      fbGoogleProvider = new GoogleAuthProvider();
+      fbGoogleProvider.setCustomParameters({ prompt: 'select_account' });
+      console.log("🔥 [EcoBounty] Firebase Auth inicializado.");
+    } catch (e) {
+      console.warn("⚠️ [EcoBounty] Erro ao carregar Firebase Auth:", e);
+    }
+
+    async function notificarErroGoogle(code, message) {
+      try {
+        await fetch(getEcoBountyApiBase() + "/google_auth_callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          mode: "cors",
+          body: JSON.stringify({
+            status: "error",
+            code: code,
+            message: message
+          })
+        });
+      } catch (e) {}
+    }
+
+    window.iniciarLoginGoogle = async function() {
+      console.log("🔐 [EcoBounty] Disparando popup Google Sign-In...");
+      if (!fbAuth || !fbGoogleProvider) {
+        await notificarErroGoogle("sdk_error", "Firebase Auth não pôde ser inicializado.");
+        return;
+      }
+      try {
+        const result = await signInWithPopup(fbAuth, fbGoogleProvider);
+        const user = result.user;
+        console.log("✅ [EcoBounty] Google Auth sucesso:", user.email, user.displayName);
+        await fetch(getEcoBountyApiBase() + "/google_auth_callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          mode: "cors",
+          body: JSON.stringify({
+            status: "success",
+            email: user.email,
+            name: user.displayName || (user.email ? user.email.split("@")[0] : "Usuário Google"),
+            photo_url: user.photoURL || "",
+            uid: user.uid
+          })
+        });
+      } catch (err) {
+        console.warn("⚠️ [EcoBounty] Erro ou cancelamento no popup Google:", err);
+        let msg = err.message || "Erro desconhecido";
+        if (err.code === "auth/unauthorized-domain") {
+          msg = "Domínio 127.0.0.1 não autorizado pelo Firebase. Acesse pelo endereço http://localhost:8550 ou adicione 127.0.0.1 nos Domínios Autorizados do Firebase Console.";
+        } else if (err.code === "auth/popup-closed-by-user") {
+          msg = "A janela de login do Google foi fechada antes de selecionar uma conta.";
+        } else if (err.code === "auth/popup-blocked") {
+          msg = "O popup de login foi bloqueado pelo seu navegador. Por favor, permita popups.";
+        }
+        await notificarErroGoogle(err.code || "error", msg);
+      }
+    };
+  </script>
+</body>
+
+</html>

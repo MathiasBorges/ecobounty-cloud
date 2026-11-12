@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: ecobounty-app
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.cloud_server
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: ECOBOUNTY_CLOUD
+        value: "1"
+      - key: GOOGLE_MAPS_API_KEY
+        value: "YOUR_GOOGLE_CLOUD_OR_FIREBASE_API_KEY"
+      - key: ECOBOUNTY_HOST
+        value: "0.0.0.0"
+      - key: ECOBOUNTY_PORT
+        value: "8550"
+      - key: ECOBOUNTY_SIMULATION_MODE
+        value: "true"
+      - key: ECOBOUNTY_STORAGE_BACKEND
+        value: "catbox"
+      - key: ECOBOUNTY_VISION_BACKEND
+        value: "gemini"
+      - key: GEMINI_API_KEY
+        value: "YOUR_GEMINI_OR_MAPS_API_KEY"
+      - key: GEMINI_MODEL_NAME
+        value: "gemini-3.1-flash-lite"
+      - key: GCP_PROJECT_ID
+        value: "ecobounty-9d250"
+      - key: FIREBASE_STORAGE_BUCKET
+        value: "ecobounty-9d250.firebasestorage.app"
+      - key: FIREBASE_AUTH_DOMAIN
+        value: "ecobounty-9d250.firebaseapp.com"
+      - key: MERCADOPAGO_SANDBOX
+        value: "true"
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        value: "YOUR_MERCADOPAGO_TOKEN"
+      - key: MERCADOPAGO_PUBLIC_KEY
+        value: "YOUR_MERCADOPAGO_TOKEN"

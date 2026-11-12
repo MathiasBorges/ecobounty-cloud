@@ -1,0 +1,16 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.use_as_origin"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.onrender.ecobounty_app.twa",
+      "sha256_cert_fingerprints": [
+        "4C:AD:EC:1A:91:81:42:ED:B8:8C:89:B2:39:73:5F:4B:C1:A2:AF:24:CC:F6:D3:D4:EA:A8:96:FD:E6:71:96:92"
+      ]
+    }
+  }
+]
+

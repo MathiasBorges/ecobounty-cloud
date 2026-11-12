@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>EcoBounty Mapa Interativo</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #map { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e2e8f0; overflow: hidden; }
+
+    /* Barra Superior Flutuante */
+    .top-nav-bar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 1001;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+    }
+    .top-nav-bar > * {
+      pointer-events: auto;
+    }
+    .top-nav-btn {
+      background: rgba(15, 23, 42, 0.88);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 7px 13px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      transition: all 0.15s ease;
+    }
+    .top-nav-btn:hover {
+      background: #0f172a;
+      transform: translateY(-1px);
+    }
+    .top-nav-title {
+      background: rgba(255, 255, 255, 0.92);
+      color: #0f172a;
+      border-radius: 12px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    /* Marcador do Usuário Pulsante */
+    .user-pulse-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .user-pulse-ring {
+      position: absolute;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: rgba(37, 99, 235, 0.35);
+      animation: pulse-ring 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+    }
+    .user-pulse-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #2563eb;
+      border: 3px solid #ffffff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.6);
+      z-index: 2;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.6); opacity: 0.9; }
+      80% { transform: scale(1.6); opacity: 0; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    /* Pino de Missão / Bounty */
+    .bounty-pin {
+      background: #059669;
+      color: white;
+      font-weight: 800;
+      font-size: 13px;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.45);
+      cursor: pointer;
+      transition: transform 0.18s ease;
+    }
+    .bounty-pin:hover, .bounty-pin.selected {
+      transform: scale(1.18);
+      background: #047857;
+      box-shadow: 0 6px 16px rgba(4, 120, 87, 0.65);
+    }
+    .bounty-pin.valioso {
+      background: #0f172a;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.45);
+    }
+
+    /* Popup Personalizado do EcoBounty */
+    .leaflet-popup-content-wrapper {
+      border-radius: 14px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2);
+    }
+    .leaflet-popup-content {
+      margin: 0;
+      line-height: 1.4;
+    }
+    .popup-card {
+      padding: 12px 14px;
+      min-width: 180px;
+      background: #ffffff;
+    }
+    .popup-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #0f172a;
+      margin-bottom: 2px;
+    }
+    .popup-sub {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .popup-val {
+      font-size: 14px;
+      font-weight: 800;
+      color: #059669;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .popup-btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: #059669;
+      color: white;
+      text-decoration: none;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .popup-btn:hover {
+      background: #047857;
+    }
+
+    /* Botão Flutuante Centralizar (🎯) */
+    .recenter-btn {
+      position: absolute;
+      top: 80px;
+      right: 12px;
+      z-index: 1000;
+      background: white;
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease;
+    }
+    .recenter-btn:hover { background: #f8fafc; }
+
+    /* Indicador do Provedor */
+    .provider-pill {
+      position: absolute;
+      bottom: 6px;
+      left: 10px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.88);
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #334155;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-nav-bar">
+    <button class="top-nav-btn" onclick="voltarAoApp()">← Voltar ao App</button>
+    <div class="top-nav-title">EcoBounty • Maceió</div>
+    <button class="top-nav-btn" onclick="recenterOnUser()">📍 Meu Local</button>
+  </div>
+  <div id="map"></div>
+  <button class="recenter-btn" title="Centralizar na minha localização" onclick="recenterOnUser()">🎯</button>
+  <div class="provider-pill">🌍 OpenStreetMap Interativo · 100% Livre</div>
+
+  <script>
+    // 1. Extração segura de Parâmetros de URL
+    const params = new URLSearchParams(window.location.search);
+    const userLat = parseFloat(params.get('lat') || '-9.5600');
+    const userLng = parseFloat(params.get('lng') || '-35.8200');
+    const zoomLvl = parseInt(params.get('zoom') || '15');
+    const routeMode = params.get('route_mode') || 'none';
+    const destLat = parseFloat(params.get('dest_lat') || '0');
+    const destLng = parseFloat(params.get('dest_lng') || '0');
+
+    let bounties = [];
+    try {
+      const rawBounties = params.get('bounties');
+      if (rawBounties) {
+        bounties = JSON.parse(decodeURIComponent(rawBounties));
+      }
+    } catch (e) {
+      console.warn("Erro ao ler bounties da URL:", e);
+    }
+
+    // 2. Camadas Cartográficas Oficiais Gratuitas (OpenStreetMap Standard e Esri Satélite)
+    const osmStandard = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: '&copy; Esri &copy; OpenStreetMap'
+    });
+
+    // 3. Inicialização do Mapa Leaflet com OpenStreetMap Padrão
+    const map = L.map('map', {
+      center: [userLat, userLng],
+      zoom: zoomLvl,
+      zoomControl: false,
+      layers: [osmStandard]
+    });
+
+    // Controle de Zoom no canto direito
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    // Controle de Camadas (OpenStreetMap e Satélite Real)
+    const baseMaps = {
+      "OpenStreetMap": osmStandard,
+      "Satélite Real": esriSatellite
+    };
+    L.control.layers(baseMaps, null, { position: 'topleft' }).addTo(map);
+
+    // 4. Marcador do Usuário com Efeito Radar
+    const userIcon = L.divIcon({
+      className: 'user-pulse-marker',
+      html: '<div class="user-pulse-ring"></div><div class="user-pulse-dot"></div>',
+      iconSize: [38, 38],
+      iconAnchor: [19, 19]
+    });
+    const userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map);
+    userMarker.bindTooltip("<b>Você está aqui</b>", { direction: 'top', offset: [0, -10] });
+
+    // 5. Adição dos Marcadores de Bounties Dinâmicos
+    bounties.forEach(b => {
+      if (!b.lat || !b.lng) return;
+      const isValioso = b.value && b.value >= 40.0;
+      const pinClass = isValioso ? 'bounty-pin valioso' : 'bounty-pin';
+      const bIcon = L.divIcon({
+        className: 'custom-bounty-icon',
+        html: `<div class="${pinClass}">$</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      const m = L.marker([b.lat, b.lng], { icon: bIcon }).addTo(map);
+      
+      const distLabel = b.dist_text || (b.dist ? `${Math.round(b.dist)}m` : 'Próximo');
+      const valLabel = b.value ? `R$ ${parseFloat(b.value).toFixed(2).replace('.', ',')}` : 'R$ 25,00';
+      const popupHtml = `
+        <div class="popup-card">
+          <div class="popup-title">${b.title || 'Resíduo Reciclável'}</div>
+          <div class="popup-sub">${b.type || 'Material'} • ${distLabel}</div>
+          <div class="popup-val">
+            <span>Recompensa</span>
+            <span>${valLabel}</span>
+          </div>
+          <button class="popup-btn" onclick="selectBounty(${b.id})">Ver Detalhes da Missão</button>
+        </div>
+      `;
+      m.bindPopup(popupHtml, { closeButton: false });
+    });
+
+    // 6. Traçado de Rota se estiver no Modo de Navegação
+    if ((routeMode === 'phase1' || routeMode === 'phase2') && destLat && destLng) {
+      let routePoints = [
+        [userLat, userLng],
+        [destLat, destLng]
+      ];
+      try {
+        const rawPts = params.get('route_points');
+        if (rawPts) {
+          const parsed = JSON.parse(decodeURIComponent(rawPts));
+          if (Array.isArray(parsed) && parsed.length > 1) {
+            routePoints = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao ler route_points:', e);
+      }
+
+      // Linha de rota azul moderna com contorno (glow)
+      let glowLine = L.polyline(routePoints, {
+        color: '#60a5fa',
+        weight: 8,
+        opacity: 0.4
+      }).addTo(map);
+
+      let coreLine = L.polyline(routePoints, {
+        color: '#2563eb',
+        weight: 4,
+        opacity: 0.95
+      }).addTo(map);
+
+      // Traçado por Calçadas/Ruas com OSRM Foot (100% Gratuito)
+      const osrmUrl = `https://router.project-osrm.org/route/v1/foot/${userLng.toFixed(6)},${userLat.toFixed(6)};${destLng.toFixed(6)},${destLat.toFixed(6)}?overview=full&geometries=geojson`;
+      fetch(osrmUrl)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.routes && data.routes.length > 0) {
+            const r = data.routes[0];
+            const coords = r.geometry.coordinates.map(pt => [pt[1], pt[0]]);
+            map.removeLayer(glowLine);
+            map.removeLayer(coreLine);
+            glowLine = L.polyline(coords, { color: '#60a5fa', weight: 8, opacity: 0.45 }).addTo(map);
+            coreLine = L.polyline(coords, {
+              color: routeMode === 'phase2' ? '#2563eb' : '#059669',
+              weight: 5,
+              opacity: 0.95,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(map);
+            const distM = Math.round(r.distance);
+            const distTxt = distM >= 1000 ? (distM / 1000).toFixed(1) + ' km' : distM + ' m';
+            const durMin = Math.max(1, Math.round(r.duration / 60));
+            coreLine.bindPopup(`<b>🚶 Rota a Pé pelas Calçadas:</b><br>${distTxt} • ~${durMin} min`).openPopup();
+            map.fitBounds(coreLine.getBounds().pad(0.18));
+          }
+        })
+        .catch(e => { console.log('OSRM routing offline/fallback'); });
+
+      // Marcador de Destino com Bandeira ou Alvo
+      const destIcon = L.divIcon({
+        className: 'dest-flag-icon',
+        html: `<div style="background: ${routeMode === 'phase2' ? '#2563eb' : '#059669'}; color: white; border: 2px solid white; border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 16px;">${routeMode === 'phase2' ? '🏁' : '📍'}</div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
+      });
+      L.marker([destLat, destLng], { icon: destIcon }).addTo(map).bindTooltip(
+        routeMode === 'phase2' ? '<b>Ecoponto de Descarte</b>' : '<b>Local do Resíduo</b>',
+        { direction: 'top', offset: [0, -10] }
+      );
+
+      // Enquadra a visão para mostrar usuário e destino
+      map.fitBounds(L.latLngBounds(routePoints), { padding: [40, 40] });
+    }
+
+    // 7. Funções de Interação e Integração com o App
+    function recenterOnUser() {
+      map.flyTo([userLat, userLng], 16, { animate: true, duration: 0.8 });
+    }
+
+    function voltarAoApp() {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'CLOSE_MAP' }, '*');
+      } else {
+        window.location.href = '/?tab=map';
+      }
+    }
+
+    function selectBounty(id) {
+      try {
+        localStorage.setItem('ecobounty_selected_bounty_id', id);
+      } catch (e) {}
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'SELECT_BOUNTY', id: id }, '*');
+      } else {
+        window.location.href = '/?bounty_id=' + id + '&tab=list';
+      }
+    }
+  </script>
+</body>
+</html>

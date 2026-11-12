@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>EcoBounty - Câmera em Tempo Real</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #020617;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+
+    #app-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Vídeo em tempo real cobrindo a tela */
+    #video-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: 1;
+      background: #000;
+    }
+    #camera-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Mira / Grid fotográfico */
+    .viewfinder-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-evenly;
+    }
+    .grid-line-h {
+      width: 100%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .viewfinder-grid-v {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+      display: flex;
+      justify-content: space-evenly;
+    }
+    .grid-line-v {
+      width: 1px;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Moldura central de foco */
+    .focus-reticle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 220px;
+      height: 220px;
+      border: 2px dashed rgba(52, 211, 153, 0.6);
+      border-radius: 16px;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* Barra Superior */
+    .top-bar {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 480px;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+    }
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 12px;
+      font-weight: 700;
+      color: #34d399;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      animation: blink 1.2s infinite ease-in-out;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+    }
+    .btn-icon {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s;
+    }
+    .btn-icon:hover {
+      background: rgba(5, 150, 105, 0.8);
+    }
+
+    /* Barra Inferior com Obturador */
+    .bottom-bar {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 480px;
+      padding: 24px 20px 36px 20px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%);
+    }
+
+    /* Botão Obturador Circular */
+    .shutter-btn {
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 5px solid #059669;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 25px rgba(5, 150, 105, 0.6);
+      transition: transform 0.1s, box-shadow 0.2s;
+      outline: none;
+    }
+    .shutter-btn:active {
+      transform: scale(0.92);
+      box-shadow: 0 0 10px rgba(5, 150, 105, 0.8);
+    }
+    .shutter-inner {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid #059669;
+    }
+
+    /* Modal de Permissão / Erro */
+    #permission-modal {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 50;
+      background: rgba(2, 6, 23, 0.95);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .modal-box {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 20px;
+      padding: 28px 20px;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .modal-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      background: #059669;
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    /* Modal de Preview após Foto Tirada */
+    #preview-modal {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 40;
+      background: #020617;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #preview-img {
+      width: 100%;
+      height: 75%;
+      object-fit: contain;
+      background: #000;
+    }
+    .preview-actions {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+      display: flex;
+      gap: 12px;
+    }
+    .btn-retake {
+      flex: 1;
+      padding: 14px;
+      border-radius: 12px;
+      background: #1e293b;
+      color: white;
+      font-weight: 700;
+      border: 1px solid #334155;
+      cursor: pointer;
+    }
+    .btn-confirm {
+      flex: 2;
+      padding: 14px;
+      border-radius: 12px;
+      background: #059669;
+      color: white;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(5, 150, 105, 0.4);
+    }
+
+    #file-fallback-input {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <!-- Viewfinder da Câmera -->
+    <div id="video-wrapper">
+      <video id="camera-video" autoplay playsinline muted></video>
+    </div>
+
+    <!-- Linhas de Apoio Visual -->
+    <div class="viewfinder-grid">
+      <div class="grid-line-h"></div>
+      <div class="grid-line-h"></div>
+    </div>
+    <div class="viewfinder-grid-v">
+      <div class="grid-line-v"></div>
+      <div class="grid-line-v"></div>
+    </div>
+    <div class="focus-reticle"></div>
+
+    <!-- Barra Superior -->
+    <div class="top-bar">
+      <button class="btn-icon" onclick="goBack()" title="Voltar ao EcoBounty">✕</button>
+      <div class="live-badge">
+        <span class="live-dot"></span>
+        <span>CÂMERA AO VIVO</span>
+      </div>
+      <button class="btn-icon" onclick="toggleCameraFacing()" title="Trocar de Câmera (Frontal/Traseira)">🔄</button>
+    </div>
+
+    <!-- Barra Inferior -->
+    <div class="bottom-bar">
+      <button class="btn-icon" onclick="triggerFileInput()" title="Importar da Galeria">📁</button>
+      <button class="shutter-btn" id="shutter-button" onclick="takeSnapshot()" title="Tirar Foto"></button>
+      <div style="width: 40px;"></div>
+    </div>
+  </div>
+
+  <!-- Modal de Permissão / Solicitação de Câmera -->
+  <div id="permission-modal">
+    <div class="modal-box">
+      <div style="font-size: 48px;">📷</div>
+      <h3 style="font-size: 18px; font-weight: 800;">Permissão de Câmera</h3>
+      <p id="permission-msg" style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
+        O EcoBounty precisa de acesso à câmera do seu dispositivo para fotografar o resíduo em tempo real.
+      </p>
+      <button class="modal-btn" onclick="initCamera()">
+        <span>Autorizar e Abrir Câmera</span>
+      </button>
+      <button class="modal-btn" style="background: #1e293b; border: 1px solid #334155;" onclick="triggerFileInput()">
+        <span>Ou Escolher Arquivo</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal de Preview da Foto Capturada -->
+  <div id="preview-modal">
+    <div style="padding: 16px; font-size: 14px; font-weight: 700; color: #34d399;">
+      ✓ Foto Capturada em Tempo Real
+    </div>
+    <img id="preview-img" alt="Foto capturada" />
+    <div class="preview-actions">
+      <button class="btn-retake" onclick="retakePhoto()">Tirar Outra</button>
+      <button class="btn-confirm" id="btn-save" onclick="confirmAndUpload()">Confirmar e Enviar</button>
+    </div>
+  </div>
+
+  <!-- Elemento oculto de canvas e input de arquivo -->
+  <canvas id="snapshot-canvas" style="display: none;"></canvas>
+  <input type="file" id="file-fallback-input" accept="image/*" capture="environment" onchange="handleFallbackFile(this)" />
+
+  <script>
+    let currentStream = null;
+    let currentFacingMode = "environment"; // Inicia pela câmera traseira no celular
+    let capturedBlob = null;
+    let urlParams = new URLSearchParams(window.location.search);
+    let mode = urlParams.get("mode") || "denuncia";
+    let userId = urlParams.get("user_id") || "1";
+
+    const video = document.getElementById("camera-video");
+    const canvas = document.getElementById("snapshot-canvas");
+    const previewModal = document.getElementById("preview-modal");
+    const previewImg = document.getElementById("preview-img");
+    const permissionModal = document.getElementById("permission-modal");
+    const permissionMsg = document.getElementById("permission-msg");
+
+    async function initCamera() {
+      permissionModal.style.display = "none";
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+      }
+
+      const constraints = {
+        video: {
+          facingMode: { ideal: currentFacingMode },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      };
+
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = currentStream;
+        await video.play();
+      } catch (err) {
+        console.warn("Erro ao obter getUserMedia:", err);
+        // Tenta fallback sem restrição de facingMode
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = currentStream;
+          await video.play();
+        } catch (fallbackErr) {
+          showPermissionError(fallbackErr);
+        }
+      }
+    }
+
+    function showPermissionError(err) {
+      permissionModal.style.display = "flex";
+      permissionMsg.innerText = "Não foi possível acessar a câmera (" + (err.name || "Sem permissão") + "). Conceda permissão no navegador ou escolha uma foto.";
+    }
+
+    function toggleCameraFacing() {
+      currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+      initCamera();
+    }
+
+    function takeSnapshot() {
+      if (!video.videoWidth || !video.videoHeight) {
+        alert("Aguarde a câmera iniciar o vídeo.");
+        return;
+      }
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(function(blob) {
+        capturedBlob = blob;
+        previewImg.src = URL.createObjectURL(blob);
+        previewModal.style.display = "flex";
+      }, "image/jpeg", 0.92);
+    }
+
+    function retakePhoto() {
+      previewModal.style.display = "none";
+      capturedBlob = null;
+    }
+
+    async function confirmAndUpload() {
+      const btn = document.getElementById("btn-save");
+      btn.disabled = true;
+      btn.innerText = "Salvando Foto...";
+
+      if (!capturedBlob) {
+        alert("Nenhuma foto disponível.");
+        btn.disabled = false;
+        btn.innerText = "Confirmar e Enviar";
+        return;
+      }
+
+      const filename = "camera_real_" + Date.now() + ".jpg";
+
+      try {
+        // Envia a imagem capturada diretamente para o endpoint do EcoBounty (local :8552 ou nuvem /ecoapi)
+        const loc = window.location || {};
+        const p = String(loc.port || "");
+        const apiBase = (!p || p === "80" || p === "443")
+          ? (loc.origin + "/ecoapi")
+          : ((loc.protocol || "http:") + "//" + (loc.hostname || "127.0.0.1") + ":8552");
+        let cid = urlParams.get("cid") || "";
+        try { if (!cid) cid = localStorage.getItem("ecobounty_cid") || ""; } catch (e) {}
+        const cidSuffix = cid ? ("?cid=" + encodeURIComponent(cid)) : "";
+        const uploadUrl = apiBase + "/upload" + cidSuffix;
+        const resp = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": "image/jpeg" },
+          mode: "cors",
+          body: capturedBlob
+        });
+        const resData = await resp.json();
+        const savedFile = resData.filename || filename;
+        // Retorna para o aplicativo com a foto anexada e preservando o cid do dispositivo
+        window.location.href = "/?captured=" + encodeURIComponent(savedFile) + "&mode=" + encodeURIComponent(mode) + (cid ? "&cid=" + encodeURIComponent(cid) : "");
+      } catch (err) {
+        console.error("Erro no upload:", err);
+        let cid = urlParams.get("cid") || "";
+        try { if (!cid) cid = localStorage.getItem("ecobounty_cid") || ""; } catch (e) {}
+        // Fallback: retorna com o nome gerado
+        window.location.href = "/?captured=" + encodeURIComponent(filename) + "&mode=" + encodeURIComponent(mode) + (cid ? "&cid=" + encodeURIComponent(cid) : "");
+      }
+    }
+
+    function triggerFileInput() {
+      document.getElementById("file-fallback-input").click();
+    }
+
+    function handleFallbackFile(input) {
+      if (input.files && input.files[0]) {
+        capturedBlob = input.files[0];
+        previewImg.src = URL.createObjectURL(capturedBlob);
+        previewModal.style.display = "flex";
+      }
+    }
+
+    function goBack() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+      }
+      window.location.href = "/";
+    }
+
+    // Inicializa a câmera assim que a página carregar
+    window.addEventListener("load", function() {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        initCamera();
+      } else {
+        permissionModal.style.display = "flex";
+      }
+    });
+  </script>
+</body>
+</html>
